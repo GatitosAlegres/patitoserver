@@ -1,12 +1,19 @@
 ﻿using System.Net;
 using System.Net.Sockets;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Converters;
+using Newtonsoft.Json.Serialization;
 using PatitoServer.Lib;
 
 namespace PatitoServer.Core;
 
 public class Ip
 {
+    [JsonProperty("address")]
     public string Address { get; set; }
+    
+    [JsonProperty("type")]
+    [JsonConverter(typeof(StringEnumConverter))]
     public IpType Type { get; set; }
 
     public Ip(IpType type, string address)
@@ -23,7 +30,7 @@ public class Ip
         }
     }
 
-    public static Ip Parse(IPEndPoint endPoint)
+    private static Ip Parse(IPEndPoint endPoint)
     {
         var address = endPoint.Address;
 
@@ -35,6 +42,15 @@ public class Ip
         return new Ip(type, address.ToString());
     }
 
+    public static Ip GetRemoteIp(Socket? socket)
+    {
+        var remoteEndPoint = (IPEndPoint)socket?.RemoteEndPoint!;
+
+        var ipRemote = Parse(remoteEndPoint);
+
+        return ipRemote;
+    }
+    
     public static IPEndPoint GetLocalEndPoint(int port)
     {
         var localHost = Dns.GetHostEntry(Dns.GetHostName());

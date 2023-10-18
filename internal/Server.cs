@@ -1,7 +1,9 @@
 ﻿using System.Net.Sockets;
 using System.Text;
+using Newtonsoft.Json;
+using PatitoClient.Core;
 using PatitoServer.Core;
-using PatitoServer.Decoders;
+using PatitoServer.Dto;
 using PatitoServer.Lib;
 
 namespace PatitoServer.Internal;
@@ -10,11 +12,11 @@ public class Server
 {
     private int MaxClientsConnections { get; set; }
     private readonly Socket? _serverSocket;
+    private Socket? _clientSocket;
     private List<Client> Clients { get; set; }
     private Thread? _handlerSessionThread;
     private Thread? _handlerPublishClientListThread;
-    private int _count = 1;
-    private IMessageCodec? MessageCodec { get; set; }
+
         
     private Server()
     {
@@ -33,12 +35,6 @@ public class Server
         public ServerBuilder SetMaxClientsConnections(int maxClientsConnections)
         {
             _server.MaxClientsConnections = maxClientsConnections;
-            return this;
-        }
-
-        public ServerBuilder SetMessageCodec(IMessageCodec messageCodec)
-        {
-            _server.MessageCodec = messageCodec;
             return this;
         }
 
@@ -64,13 +60,18 @@ public class Server
 
             _serverSocket?.Listen(MaxClientsConnections);
 
-            Console.WriteLine("Server listen in port: " + Constants.SERVER_PORT + "\n\n");
-
+            callback.Invoke();
+            
             while (true)
             {
-                callback.Invoke();
-            }
+                _clientSocket = _serverSocket?.Accept();
 
+                var authenticatedClient =Auth(_clientSocket);
+                
+                Clients.Add(authenticatedClient);
+                
+                HandlerClient(authenticatedClient);
+            }
         }
         catch (SocketException err)
         {
@@ -78,22 +79,30 @@ public class Server
         }
     }
 
-    public Client SyncAcceptClient()
+    private Client Auth(Socket? clientSocketAccept)
     {
-        var clientSocket = _serverSocket?.Accept();
+        var buffer = new byte[Constants.MAX_MESSAGE_SIZE];
+                    
+        var bytesRead = clientSocketAccept?.Receive(buffer);
 
-        Client client = new(clientSocket);
-
-        client.Nickname = _count.ToString();
-
-        _count++;
-            
-        Clients.Add(client);
-            
-        return client;
-    }
+        if (bytesRead is <= 0 or null) throw new Exception("Client did not send auth token");
+                
+        var payloadRaw = Encoding.UTF8.GetString(buffer, 0, bytesRead.Value);
         
-    public void HandlerClient(Client client)
+        var payload = DecodePayload(payloadRaw);
+        
+        if (payload == null) throw new Exception("Payload does not match");
+        
+        var clientJson = Encoding.UTF8.GetString(payload.Data);
+
+        var clientAccept = JsonConvert.DeserializeObject<Client>(clientJson)!;
+
+        clientAccept.Socket = clientSocketAccept;
+
+        return clientAccept;
+    }
+
+    private void HandlerClient(Client client)
     {
         _handlerSessionThread = new Thread(CreateSession);
         _handlerPublishClientListThread = new Thread(PublishClientList);
@@ -101,14 +110,15 @@ public class Server
         _handlerSessionThread?.Start(client);
         _handlerPublishClientListThread?.Start();
     }
-
+    
     private void CreateSession(object? clt)
     {
+        
         var client = (Client)clt!;
 
         var clientIp = client.ClientIp;
 
-        Console.WriteLine($"Connection established with client: Ip Address {clientIp.Address} | Ip Type {clientIp.Type}");
+        Console.WriteLine($"Connection established with client {client.Nickname}: Ip Address {clientIp.Address} | Ip Type {clientIp.Type}");
             
         try
         {
@@ -119,30 +129,34 @@ public class Server
                 var bytesRead = client.Socket!.Receive(buffer);
 
                 if (bytesRead <= 0) continue;
+                
+                var payloadRaw = Encoding.UTF8.GetString(buffer, 0, bytesRead);
 
-                var message = MessageCodec?.Decode(buffer, (body, emitterIp, receiverIp) =>
+                var payload = DecodePayload(payloadRaw);
+
+                if (payload == null) continue;
+                
+                switch (payload.Type)
                 {
-                    var emitter = Clients.Find(ctl => ctl.ClientIp.Address == emitterIp.Address);
-                    var receiver = Clients.Find(ctl => ctl.ClientIp.Address == receiverIp.Address);
+                    case PayloadType.ACTION:
+                    {
+                        // TODO:
+                        
+                    }break;
 
-                    if (emitter == null || receiver == null) throw new Exception("emitter or receiver is null");
-                    
-                    var message = new Message(body, emitter, receiver);
-
-                    return message;
-
-                });
-
-                if (message == null) continue;
+                    case PayloadType.CLIENT_TO_CLIENT:
+                    {
+                        // TODO:
+                    }break;
                 
-                var messageBuffer = MessageCodec?.Encode(message)!;
-                
-                message.Send(messageBuffer);
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
             }
         }
         catch (Exception err)
         {
-            Console.Error.WriteLine($"Connection error with client: Ip Address {clientIp.Address} | Ip Type {clientIp.Type}  \n {err.Message}");
+            Console.Error.WriteLine($"Connection error with client: Ip Address {clientIp.Address} | Ip Type {clientIp.Type}  \n {err}");
 
         }
         finally
@@ -150,12 +164,23 @@ public class Server
             client.Socket?.Close();
         }
     }
+    
+    private Payload? DecodePayload(string raw)
+    {
+        var payload = JsonConvert.DeserializeObject<Payload>(raw);
+
+        return payload;
+    }
 
     private void PublishClientList(object? obj)
     {
-        var clientsString = string.Join(",", Clients);
+        var clientsString = JsonConvert.SerializeObject(Clients);
+
+        var clientsBytes = Encoding.UTF8.GetBytes(clientsString);
+        
+        var byteString = "[" + string.Join(", ", clientsBytes) + "]";
             
-        var responseData = Encoding.ASCII.GetBytes($"[{clientsString}]");
+        var responseData = Encoding.ASCII.GetBytes($"{{\"type\": \"BROADCAST\",\"data\": {byteString}}}");
             
         Clients.ForEach(client =>
         {

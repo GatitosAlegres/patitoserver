@@ -1,4 +1,6 @@
-﻿namespace PatitoServer.Core;
+﻿using Newtonsoft.Json;
+
+namespace PatitoServer.Core;
 
 public enum IpType
 {

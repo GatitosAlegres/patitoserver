@@ -1,29 +1,35 @@
 ﻿using System.Net.Sockets;
-using System.Net;
+using Newtonsoft.Json;
 
 namespace PatitoServer.Core;
 
 public class Client
 {
+    [JsonIgnore]
     public Socket? Socket { get ; set ; }
+    
+    [JsonProperty("nickname")]
     public string? Nickname { get ; set ; }
+    
+    [JsonProperty("ip_address")]
     public Ip ClientIp { get; set; }
+    
+    [JsonProperty("is_online")]
     public bool IsOnline { get; set; }
 
-    public Client(Socket? socket)
+    public Client(Socket? socket, Ip ip)
     {
         Socket = socket;
-        ClientIp = GetRemoteIp();
+        ClientIp = ip;
         IsOnline = true;
     }
-
-    private Ip GetRemoteIp()
+    
+    [JsonConstructor]
+    public Client(string nickname, Ip ip, bool isOnline)
     {
-        var remoteEndPoint = (IPEndPoint)Socket?.RemoteEndPoint!;
-
-        var ipRemote = Ip.Parse(remoteEndPoint);
-
-        return ipRemote;
+        Nickname = nickname;
+        ClientIp = ip;
+        IsOnline = isOnline;
     }
 
     public void Disconect()
@@ -34,10 +40,5 @@ public class Client
     public void Reconect()
     {
         IsOnline = true;
-    }
-
-    public override string ToString()
-    {
-        return $"{{\n \"Nickname\": \"{Nickname}\",\n  \"IpAddress\": \"{ClientIp.Address}\",\n  \"IpType\": \"{ClientIp.Type.ToString()}\",\n  \"IsOnline\": {IsOnline}\n}}";
     }
 }

@@ -1,13 +1,17 @@
-﻿using PatitoServer.Decoders;
+﻿using Newtonsoft.Json;
 
 namespace PatitoServer.Core;
 
 public class Message
 {
-
-    private string Body { get; set; }
+    [JsonProperty("emitter")]
     private Client Emitter { get; set; }
+    
+    [JsonProperty("receiver")]
     private Client Receiver { get; set; }
+    
+    [JsonProperty("body")]
+    private string Body { get; set; }
 
     public Message(string body, Client emitter, Client receiver)
     {
