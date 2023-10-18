@@ -12,7 +12,6 @@ public class Server
 {
     private int MaxClientsConnections { get; set; }
     private readonly Socket? _serverSocket;
-    private Socket? _clientSocket;
     private List<Client> Clients { get; set; }
     private Thread? _handlerSessionThread;
     private Thread? _handlerPublishClientListThread;
@@ -64,9 +63,9 @@ public class Server
             
             while (true)
             {
-                _clientSocket = _serverSocket?.Accept();
+                var clientSocket = _serverSocket?.Accept();
 
-                var authenticatedClient =Auth(_clientSocket);
+                var authenticatedClient =Auth(clientSocket);
                 
                 Clients.Add(authenticatedClient);
                 
@@ -97,6 +96,7 @@ public class Server
 
         var clientAccept = JsonConvert.DeserializeObject<Client>(clientJson)!;
 
+        clientAccept.ClientIp = Ip.GetRemoteIp(clientSocketAccept);
         clientAccept.Socket = clientSocketAccept;
 
         return clientAccept;
