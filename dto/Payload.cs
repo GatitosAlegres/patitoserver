@@ -5,14 +5,13 @@ using PatitoClient.Core;
 
 namespace PatitoServer.Dto;
 
-public record Payload
+public record Payload(PayloadType Type, byte[] Data)
 {
     [JsonProperty("type")]
     [JsonConverter(typeof(StringEnumConverter))]
-    public PayloadType Type { get; set; }
-    
-    [JsonProperty("data")]
-    public byte[] Data { get; set; }
+    public PayloadType Type { get; set; } = Type;
+
+    [JsonProperty("data")] public byte[] Data { get; set; } = Data;
 
     public string RawData()
     {

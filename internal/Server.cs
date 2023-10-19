@@ -111,10 +111,10 @@ public class Server
         _handlerPublishClientListThread?.Start();
     }
     
-    private void CreateSession(object? clt)
+    private void CreateSession(object? clientObject)
     {
         
-        var client = (Client)clt!;
+        var client = (Client)clientObject!;
 
         var clientIp = client.ClientIp;
 
@@ -146,7 +146,23 @@ public class Server
 
                     case PayloadType.CLIENT_TO_CLIENT:
                     {
-                        // TODO:
+                        var rawData = payload.RawData();
+                        
+                        var message = JsonConvert.DeserializeObject<Message>(rawData)!;
+
+                        var receiver = Clients.Find(clientAuth => clientAuth.Nickname == message.Receiver.Nickname &&
+                                                                    clientAuth.ClientIp.Address == message.Receiver.ClientIp.Address);
+
+                        var messageBytes = Encoding.UTF8.GetBytes(rawData);
+
+                        var messagePayload = new Payload(PayloadType.CLIENT_TO_CLIENT, messageBytes);
+
+                        var messagePayloadSerialized = JsonConvert.SerializeObject(messagePayload);
+
+                        var messagePayloadBytes = Encoding.UTF8.GetBytes(messagePayloadSerialized);
+
+                        receiver?.Socket?.Send(messagePayloadBytes);
+
                     }break;
                 
                     default:
@@ -162,6 +178,8 @@ public class Server
         finally
         {
             client.Socket?.Close();
+            _handlerPublishClientListThread = new Thread(PublishClientList);
+            _handlerPublishClientListThread.Start();
         }
     }
     
