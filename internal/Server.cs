@@ -10,11 +10,13 @@ namespace PatitoServer.Internal;
 
 public class Server
 {
+    private delegate void OnBroadcast();
+    
     private int MaxClientsConnections { get; set; }
     private readonly Socket? _serverSocket;
     private List<Client> Clients { get; set; }
     private Thread? _handlerSessionThread;
-    private Thread? _handlerPublishClientListThread;
+    private OnBroadcast _publishClientListDelegate;
 
         
     private Server()
@@ -25,6 +27,7 @@ public class Server
             ProtocolType.Tcp
         );
         Clients = new List<Client>();
+        _publishClientListDelegate = PublishClientList;
     }
 
     public class ServerBuilder
@@ -63,11 +66,14 @@ public class Server
             
             while (true)
             {
-                var clientSocket = _serverSocket?.Accept();
+                
+                var clientSocket = _serverSocket?.Accept()!;
 
                 var authenticatedClient =Auth(clientSocket);
                 
                 Clients.Add(authenticatedClient);
+                
+                _publishClientListDelegate.Invoke();
                 
                 HandlerClient(authenticatedClient);
             }
@@ -78,15 +84,13 @@ public class Server
         }
     }
 
-    private Client Auth(Socket? clientSocketAccept)
+    private Client Auth(Socket clientSocketAccept)
     {
         var buffer = new byte[Constants.MAX_MESSAGE_SIZE];
                     
-        var bytesRead = clientSocketAccept?.Receive(buffer);
-
-        if (bytesRead is <= 0 or null) throw new Exception("Client did not send auth token");
+        var bytesRead = clientSocketAccept.Receive(buffer);
                 
-        var payloadRaw = Encoding.UTF8.GetString(buffer, 0, bytesRead.Value);
+        var payloadRaw = Encoding.UTF8.GetString(buffer, 0, bytesRead);
         
         var payload = DecodePayload(payloadRaw);
         
@@ -102,13 +106,10 @@ public class Server
         return clientAccept;
     }
 
-    private void HandlerClient(Client client)
+    private void HandlerClient(Client? client)
     {
         _handlerSessionThread = new Thread(CreateSession);
-        _handlerPublishClientListThread = new Thread(PublishClientList);
-            
         _handlerSessionThread?.Start(client);
-        _handlerPublishClientListThread?.Start();
     }
     
     private void CreateSession(object? clientObject)
@@ -165,8 +166,7 @@ public class Server
 
                     }break;
                 
-                    default:
-                        throw new ArgumentOutOfRangeException();
+                    default: Console.WriteLine("Error"); break;
                 }
             }
         }
@@ -177,9 +177,9 @@ public class Server
         }
         finally
         {
+            client.Socket?.Shutdown(SocketShutdown.Both);
             client.Socket?.Close();
-            _handlerPublishClientListThread = new Thread(PublishClientList);
-            _handlerPublishClientListThread.Start();
+            _publishClientListDelegate.Invoke();
         }
     }
     
@@ -190,7 +190,7 @@ public class Server
         return payload;
     }
 
-    private void PublishClientList(object? obj)
+    private void PublishClientList()
     {
         var clientsString = JsonConvert.SerializeObject(Clients);
 
@@ -199,10 +199,13 @@ public class Server
         var byteString = "[" + string.Join(", ", clientsBytes) + "]";
             
         var responseData = Encoding.ASCII.GetBytes($"{{\"type\": \"BROADCAST\",\"data\": {byteString}}}");
-            
+        
         Clients.ForEach(client =>
         {
-            client.Socket?.Send(responseData);
+            if (client.Socket!.Connected)
+            {
+                client.Socket?.Send(responseData);
+            }
         });
     }
 }
