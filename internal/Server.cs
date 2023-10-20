@@ -192,20 +192,22 @@ public class Server
 
     private void PublishClientList()
     {
-        var clientsString = JsonConvert.SerializeObject(Clients);
-
-        var clientsBytes = Encoding.UTF8.GetBytes(clientsString);
-        
-        var byteString = "[" + string.Join(", ", clientsBytes) + "]";
-            
-        var responseData = Encoding.ASCII.GetBytes($"{{\"type\": \"BROADCAST\",\"data\": {byteString}}}");
         
         Clients.ForEach(client =>
         {
-            if (client.Socket!.Connected)
-            {
-                client.Socket?.Send(responseData);
-            }
+            if (!client.Socket!.Connected) return;
+            
+            var listWithExcludeCurrentClient = Clients.Where(clt => clt.Nickname != client.Nickname).ToList();
+                
+            var clientsString = JsonConvert.SerializeObject(listWithExcludeCurrentClient);
+
+            var clientsBytes = Encoding.UTF8.GetBytes(clientsString);
+        
+            var byteString = "[" + string.Join(", ", clientsBytes) + "]";
+            
+            var responseData = Encoding.ASCII.GetBytes($"{{\"type\": \"BROADCAST\",\"data\": {byteString}}}");
+                
+            client.Socket?.Send(responseData);
         });
     }
 }
