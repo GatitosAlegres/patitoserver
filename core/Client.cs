@@ -35,7 +35,7 @@ public class Client
     public void Disconect()
     {
         IsOnline = false;
-        Socket?.Close();
+        Socket?.Disconnect(false);
     }
     public void Reconect()
     {

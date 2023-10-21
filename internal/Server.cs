@@ -170,15 +170,20 @@ public class Server
                 }
             }
         }
-        catch (Exception err)
+        catch (Exception)
         {
-            Console.Error.WriteLine($"Connection error with client: Ip Address {clientIp.Address} | Ip Type {clientIp.Type}  \n {err}");
+            Console.Error.WriteLine($"Connection close with client {client.Nickname}: Ip Address {clientIp.Address} | Ip Type {clientIp.Type}");
 
         }
         finally
         {
-            client.Socket?.Shutdown(SocketShutdown.Both);
-            client.Socket?.Close();
+            var clientDisconnected = Clients.Find(clt =>
+                clt.Nickname == client.Nickname &&
+                clt.ClientIp.Address == client.ClientIp.Address
+            );
+
+            clientDisconnected?.Disconect();
+            
             _publishClientListDelegate.Invoke();
         }
     }
@@ -193,21 +198,23 @@ public class Server
     private void PublishClientList()
     {
         
-        Clients.ForEach(client =>
-        {
-            if (!client.Socket!.Connected) return;
-            
-            var listWithExcludeCurrentClient = Clients.Where(clt => clt.Nickname != client.Nickname).ToList();
-                
-            var clientsString = JsonConvert.SerializeObject(listWithExcludeCurrentClient);
-
-            var clientsBytes = Encoding.UTF8.GetBytes(clientsString);
+        var clientsOnline = Clients.Where(client => client.IsOnline).ToList();
         
-            var byteString = "[" + string.Join(", ", clientsBytes) + "]";
-            
-            var responseData = Encoding.ASCII.GetBytes($"{{\"type\": \"BROADCAST\",\"data\": {byteString}}}");
+        clientsOnline.ForEach(client =>
+        {
+            var listWithExcludeCurrentClient = clientsOnline.Where(clt => clt.Nickname != client.Nickname).ToList();
                 
-            client.Socket?.Send(responseData);
+            var clientListSerialized = JsonConvert.SerializeObject(listWithExcludeCurrentClient);
+
+            var clientListSerializedBytes = Encoding.UTF8.GetBytes(clientListSerialized);
+
+            var payload = new Payload(PayloadType.BROADCAST, clientListSerializedBytes);
+
+            var payloadSerialized = JsonConvert.SerializeObject(payload);
+            
+            var payloadBytes = Encoding.UTF8.GetBytes(payloadSerialized);
+                
+            client.Socket?.Send(payloadBytes);
         });
     }
 }
