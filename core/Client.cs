@@ -32,13 +32,14 @@ public class Client
         IsOnline = isOnline;
     }
 
-    public void Disconect()
+    public void Disconnect()
     {
         IsOnline = false;
         Socket?.Disconnect(false);
     }
-    public void Reconect()
+    public void Reconnect(Socket socket)
     {
         IsOnline = true;
+        Socket = socket;
     }
 }

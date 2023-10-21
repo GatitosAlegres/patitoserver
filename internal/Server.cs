@@ -70,12 +70,23 @@ public class Server
                 var clientSocket = _serverSocket?.Accept()!;
 
                 var authenticatedClient =Auth(clientSocket);
-                
-                Clients.Add(authenticatedClient);
+
+                var clientIsReconnect = Clients.Find(client =>
+                    client.Nickname == authenticatedClient.Nickname &&
+                    client.ClientIp.Address == authenticatedClient.ClientIp.Address);
+
+                if (clientIsReconnect == null)
+                {
+                    Clients.Add(authenticatedClient);
+                    HandlerClient(authenticatedClient);
+                }
+                else
+                {
+                    clientIsReconnect?.Reconnect(clientSocket);
+                    HandlerClient(clientIsReconnect);
+                }
                 
                 _publishClientListDelegate.Invoke();
-                
-                HandlerClient(authenticatedClient);
             }
         }
         catch (SocketException err)
@@ -182,7 +193,7 @@ public class Server
                 clt.ClientIp.Address == client.ClientIp.Address
             );
 
-            clientDisconnected?.Disconect();
+            clientDisconnected?.Disconnect();
             
             _publishClientListDelegate.Invoke();
         }
