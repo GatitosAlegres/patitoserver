@@ -1,0 +1,10 @@
+version: '3.9'
+services:
+  server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - APP_NAME=patitoserver
+    ports:
+      - "1300:1300"
