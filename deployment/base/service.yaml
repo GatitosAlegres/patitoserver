@@ -1,0 +1,14 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: patitoserver
+  namespace: default
+  labels:
+    app: patitoserver
+spec:
+  type: ClusterIP
+  ports:
+    - port: 80
+      targetPort: 1300
+  selector:
+    app: patitoserver

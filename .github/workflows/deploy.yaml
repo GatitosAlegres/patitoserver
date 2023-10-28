@@ -1,0 +1,44 @@
+name: Deploy to Kubernetes cluster
+
+on:
+  workflow_run:
+    workflows: ["Build Docker image"]
+    types:
+      - completed
+
+env:
+  PRODUCTION_MANIFEST_PATH: ${{ vars.PRODUCTION_MANIFEST_PATH }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Set up Kubernetes CLI
+        uses: azure/setup-kubectl@v3
+        with:
+          version: "latest"
+
+      - name: Setup Kube config
+        uses: Azure/k8s-set-context@v1
+        with:
+          method: kubeconfig
+          kubeconfig: ${{ secrets.KUBE_CONFIG }}
+
+      - name: Load Secrets
+        env:
+          PROD_ENV: ${{ secrets.PROD_ENV }}
+        run: |
+          echo "$PROD_ENV" > $PRODUCTION_MANIFEST_PATH/prod.env
+
+      - name: Install Kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+          sudo mv kustomize /usr/local/bin/
+        shell: bash
+
+      - name: Deploy to production
+        run: |
+          kubectl delete -k $GITHUB_WORKSPACE/$PRODUCTION_MANIFEST_PATH
+          kubectl apply -k $GITHUB_WORKSPACE/$PRODUCTION_MANIFEST_PATH

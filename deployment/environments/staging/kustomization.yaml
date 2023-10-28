@@ -1,0 +1,12 @@
+namespace: staging
+namePrefix: staging-
+resources:
+- ../../base
+configMapGenerator:
+- name: environment
+  envs:
+    - staging.env
+patches:
+ - path: ingress-patch.yaml 
+   target:
+      kind: Ingress

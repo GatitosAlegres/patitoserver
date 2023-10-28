@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: patitoserver
+  namespace: default
+  labels:
+    app: patitoserver
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: patitoserver
+  template:
+    metadata:
+      labels:
+        app: patitoserver
+    spec:
+      containers:
+        - name: patitoserver
+          image: 5george/patitoserver
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 1300
+          envFrom:
+            - configMapRef:
+                name: environment
