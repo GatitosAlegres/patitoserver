@@ -23,6 +23,6 @@ WORKDIR /opt/apps/${APP_NAME}
 
 COPY --from=build /opt/apps/${APP_NAME}/bin/Release/net6.0/linux-x64/publish/ /opt/apps/${APP_NAME}
 
-CMD [ "/opt/apps/$APP_NAME/PatitoServer" ]
+CMD [ "/opt/apps/patitoserver/PatitoServer" ]
 
 EXPOSE 1300
